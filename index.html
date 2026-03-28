@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0ea5a4" />
+    <title>A.AI لإدارة الصيدليات</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell" data-theme="light">
+      <section id="auth-shell" class="auth-shell"></section>
+
+      <section id="dashboard-shell" class="dashboard-shell hidden">
+        <header class="topbar">
+          <button id="menu-btn" class="icon-btn" aria-label="فتح القائمة">☰</button>
+          <h1 id="view-title">A.AI</h1>
+          <div class="topbar-actions">
+            <button id="lang-btn" class="secondary-btn">AR</button>
+            <button id="theme-btn" class="secondary-btn">🌙</button>
+          </div>
+        </header>
+
+        <button id="sidebar-backdrop" class="sidebar-backdrop hidden" aria-label="إغلاق القائمة"></button>
+        <aside id="sidebar" class="sidebar closed">
+          <div class="brand">
+            <img src="assets/icon.svg" alt="A.AI" />
+            <div>
+              <strong>A.AI</strong>
+              <p data-i18n="appTag">إدارة الصيدليات</p>
+            </div>
+          </div>
+
+          <nav>
+            <button class="nav-item active" data-view="account" data-i18n="accountManagement">إدارة الحساب</button>
+            <button class="nav-item" data-view="branches" data-i18n="branchesManagement">إدارة الفروع</button>
+            <button class="nav-item" data-view="employees" data-i18n="employeesManagement">إدارة الموظفين</button>
+            <button class="nav-item" data-view="roles" data-i18n="rolesPermissions">إدارة الصلاحيات</button>
+            <button class="nav-item" data-view="plan" data-i18n="planSubscription">الخطة والاشتراك</button>
+            <button class="nav-item danger" id="logout-btn" data-i18n="logout">تسجيل الخروج</button>
+          </nav>
+        </aside>
+
+        <main id="content" class="content"></main>
+      </section>
+    </div>
+
+    <template id="auth-template"></template>
+    <template id="dashboard-template"></template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
