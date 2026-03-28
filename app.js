@@ -76,6 +76,7 @@ const themeBtn = document.getElementById("theme-btn");
 const langBtn = document.getElementById("lang-btn");
 const menuBtn = document.getElementById("menu-btn");
 const viewTitle = document.getElementById("view-title");
+const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 
 themeBtn.addEventListener("click", () => {
   state.theme = state.theme === "light" ? "dark" : "light";
@@ -91,6 +92,12 @@ langBtn.addEventListener("click", () => {
 
 menuBtn.addEventListener("click", () => {
   sidebar.classList.toggle("closed");
+  sidebarBackdrop.classList.toggle("hidden");
+});
+
+sidebarBackdrop.addEventListener("click", () => {
+  sidebar.classList.add("closed");
+  sidebarBackdrop.classList.add("hidden");
 });
 
 document.getElementById("logout-btn").addEventListener("click", () => {
@@ -103,6 +110,7 @@ sidebar.querySelectorAll(".nav-item[data-view]").forEach((btn) => {
   btn.addEventListener("click", () => {
     state.currentView = btn.dataset.view;
     sidebar.classList.add("closed");
+    sidebarBackdrop.classList.add("hidden");
     render();
   });
 });
@@ -341,7 +349,7 @@ function renderEmployeesView() {
       <div class="toolbar full">
         <input id="emp-search" placeholder="بحث بالاسم أو البريد" />
       </div>
-      <div class="row">${employeeCards}</div>
+      <div class="row" id="employees-list">${employeeCards}</div>
     </section>
     <section class="card full">
       <h3>إضافة موظف</h3>
@@ -459,7 +467,7 @@ function bindDashboardEvents() {
         (e) => `<article class="employee-card"><strong>${e.name}</strong><p>${e.email}</p><div class="badges"><span class="badge">${e.role}</span><span class="badge">${e.branch}</span><span class="badge">${e.status}</span></div></article>`
       )
       .join("");
-    document.querySelector(".row").innerHTML = html || "<p>لا نتائج.</p>";
+    document.getElementById("employees-list").innerHTML = html || "<p>لا نتائج.</p>";
   });
 }
 
@@ -477,6 +485,8 @@ function render() {
   if (!state.authenticated) {
     authShell.classList.remove("hidden");
     dashboardShell.classList.add("hidden");
+    sidebarBackdrop.classList.add("hidden");
+    sidebar.classList.add("closed");
     renderAuth();
     return;
   }
