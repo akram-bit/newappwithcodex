@@ -2,21 +2,21 @@ const state = {
   lang: localStorage.getItem("lang") || "ar",
   theme: localStorage.getItem("theme") || "light",
   authenticated: false,
-  currentView: "account",
+  currentView: "dashboard",
   authView: "login",
   pharmacy: {
-    name: "",
-    owner: "",
-    email: "",
+    name: "صيدلية الحياة",
+    owner: "د. أحمد خالد",
+    email: "contact@alhayat-pharma.com",
     logo: "",
-    address: "",
+    address: "دمشق - المزة",
     branches: [
       {
-        pharmacyName: "",
-        branchName: "",
-        address: "",
-        city: "",
-        email: ""
+        pharmacyName: "صيدلية الحياة",
+        branchName: "الفرع الرئيسي",
+        address: "دمشق - المزة",
+        city: "دمشق",
+        email: "main@alhayat-pharma.com"
       }
     ]
   },
@@ -29,7 +29,22 @@ const state = {
     "إدارة الأدوار والصلاحيات": true,
     "عرض فقط": false
   },
-  subscription: { plan: "Starter", price: "$0", features: ["إدارة حساب", "إدارة موظفين", "إدارة فروع"] }
+  inventorySearch: "",
+  invoiceSearch: "",
+  invoiceCart: [],
+  salesHistory: [
+    { id: "INV-1001", date: "2026-03-24", amount: 33.2, items: 3, profit: 9.9 },
+    { id: "INV-1002", date: "2026-03-25", amount: 14.5, items: 2, profit: 4.4 },
+    { id: "INV-1003", date: "2026-03-26", amount: 56.0, items: 5, profit: 15.8 },
+    { id: "INV-1004", date: "2026-03-27", amount: 22.25, items: 2, profit: 6.1 }
+  ],
+  medicines: [
+    { id: 1, name: "باراسيتامول 500", barcode: "625100100001", category: "مسكن", price: 2.75, cost: 1.7, quantity: 42 },
+    { id: 2, name: "أموكسيسيلين 500", barcode: "625100100002", category: "مضاد حيوي", price: 5.5, cost: 3.9, quantity: 28 },
+    { id: 3, name: "أوميبرازول 20", barcode: "625100100003", category: "معدة", price: 4.1, cost: 2.85, quantity: 35 },
+    { id: 4, name: "فيتامين C", barcode: "625100100004", category: "فيتامين", price: 3.2, cost: 2.0, quantity: 60 },
+    { id: 5, name: "كونجستال", barcode: "625100100005", category: "رشح", price: 3.8, cost: 2.5, quantity: 24 }
+  ]
 };
 
 const translations = {
@@ -42,11 +57,10 @@ const translations = {
     noAccount: "ليس لديك حساب؟",
     createAccount: "إنشاء حساب",
     haveAccount: "لديك حساب؟",
-    accountManagement: "إدارة الحساب",
-    branchesManagement: "إدارة الفروع",
-    employeesManagement: "إدارة الموظفين",
-    rolesPermissions: "إدارة الصلاحيات",
-    planSubscription: "الخطة والاشتراك",
+    dashboard: "الرئيسية",
+    inventory: "المستودع",
+    invoice: "الفاتورة",
+    reports: "التقارير",
     logout: "تسجيل الخروج"
   },
   en: {
@@ -58,11 +72,10 @@ const translations = {
     noAccount: "No account?",
     createAccount: "Create account",
     haveAccount: "Already have an account?",
-    accountManagement: "Account",
-    branchesManagement: "Branches",
-    employeesManagement: "Employees",
-    rolesPermissions: "Roles & Permissions",
-    planSubscription: "Plan",
+    dashboard: "Dashboard",
+    inventory: "Inventory",
+    invoice: "Invoice",
+    reports: "Reports",
     logout: "Logout"
   }
 };
@@ -123,6 +136,13 @@ function setDirection() {
   document.documentElement.lang = state.lang;
   document.documentElement.dir = state.lang === "ar" ? "rtl" : "ltr";
   langBtn.textContent = state.lang.toUpperCase();
+}
+
+function currency(value) {
+  return new Intl.NumberFormat(state.lang === "ar" ? "ar" : "en", {
+    style: "currency",
+    currency: "USD"
+  }).format(value);
 }
 
 function renderAuth() {
@@ -270,13 +290,30 @@ function bindAuthEvents() {
   });
 }
 
+function getLowStockCount() {
+  return state.medicines.filter((m) => m.quantity <= 10).length;
+}
+
+function getTotalUnits() {
+  return state.medicines.reduce((sum, m) => sum + m.quantity, 0);
+}
+
+function getInventoryValue() {
+  return state.medicines.reduce((sum, m) => sum + m.price * m.quantity, 0);
+}
+
+function filterMedicines(term) {
+  const q = term.trim().toLowerCase();
+  if (!q) return state.medicines;
+  return state.medicines.filter((m) => m.name.toLowerCase().includes(q) || m.barcode.includes(q));
+}
+
 function renderDashboardView() {
   const map = {
-    account: renderAccountView,
-    branches: renderBranchesView,
-    employees: renderEmployeesView,
-    roles: renderRolesView,
-    plan: renderPlanView
+    dashboard: renderHomeView,
+    inventory: renderInventoryView,
+    invoice: renderInvoiceView,
+    reports: renderReportsView
   };
 
   viewTitle.textContent = document.querySelector(`.nav-item[data-view="${state.currentView}"]`)?.textContent || "A.AI";
@@ -285,189 +322,357 @@ function renderDashboardView() {
   bindDashboardEvents();
 }
 
-function renderAccountView() {
+function renderHomeView() {
+  const branch = state.pharmacy.branches[0] || {};
   return `
     <section class="card full">
-      <h3>إدارة الحساب</h3>
-      <div class="row">
-        <div class="form-group"><label>اسم الصيدلية</label><input id="acc-name" value="${state.pharmacy.name}" /></div>
-        <div class="form-group"><label>اسم المالك</label><input id="acc-owner" value="${state.pharmacy.owner}" /></div>
-        <div class="form-group"><label>البريد</label><input id="acc-email" type="email" value="${state.pharmacy.email}" /></div>
-        <div class="form-group"><label>العنوان</label><input id="acc-address" value="${state.pharmacy.address}" /></div>
+      <h3>${state.pharmacy.name || "اسم الصيدلية"} - ${branch.branchName || "الفرع الرئيسي"}</h3>
+      <div class="kv-grid">
+        <p><strong>المالك:</strong> ${state.pharmacy.owner || "-"}</p>
+        <p><strong>البريد:</strong> ${state.pharmacy.email || "-"}</p>
+        <p><strong>العنوان:</strong> ${state.pharmacy.address || "-"}</p>
+        <p><strong>عدد الفروع:</strong> ${state.pharmacy.branches.length}</p>
       </div>
-      <button id="save-account" class="primary-btn">حفظ التغييرات</button>
+    </section>
+    <section class="metrics-grid full">
+      <article class="metric-card">
+        <p>عدد الأصناف</p>
+        <strong>${state.medicines.length}</strong>
+      </article>
+      <article class="metric-card">
+        <p>إجمالي الكمية</p>
+        <strong>${getTotalUnits()}</strong>
+      </article>
+      <article class="metric-card">
+        <p>أدوية على وشك النفاد</p>
+        <strong>${getLowStockCount()}</strong>
+      </article>
+      <article class="metric-card">
+        <p>قيمة المخزون</p>
+        <strong>${currency(getInventoryValue())}</strong>
+      </article>
     </section>
   `;
 }
 
-function renderBranchesView() {
-  const cards = state.pharmacy.branches
+function renderInventoryView() {
+  const filtered = filterMedicines(state.inventorySearch);
+  const rows = filtered
     .map(
-      (b, i) => `
-        <article class="branch-card">
-          <h4>${b.branchName || `فرع ${i + 1}`}</h4>
-          <p>${b.address || "-"} - ${b.city || "-"}</p>
-          <p>${b.email || "-"}</p>
-        </article>
-      `
+      (m) => `
+      <tr>
+        <td>${m.name}</td>
+        <td>${m.barcode}</td>
+        <td>${m.category}</td>
+        <td>${currency(m.price)}</td>
+        <td>${m.quantity}</td>
+        <td>
+          <div class="inline-actions">
+            <button class="secondary-btn" data-edit-med="${m.id}">تعديل</button>
+            <button class="secondary-btn danger-soft" data-delete-med="${m.id}">حذف</button>
+          </div>
+        </td>
+      </tr>`
     )
     .join("");
+
   return `
     <section class="card full">
-      <h3>إدارة الفروع</h3>
-      <div class="row">${cards}</div>
+      <h3>مستودع الصيدلية</h3>
+      <div class="toolbar full inv-toolbar">
+        <input id="inventory-search" value="${state.inventorySearch}" placeholder="بحث باسم الدواء أو الباركود" />
+        <button id="scan-inventory" class="secondary-btn">📷 فتح الكاميرا</button>
+        <button id="add-medicine" class="primary-btn">+ إضافة دواء</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>الدواء</th><th>الباركود</th><th>الصنف</th><th>السعر</th><th>الكمية</th><th>إجراءات</th></tr>
+          </thead>
+          <tbody>${rows || `<tr><td colspan="6">لا توجد نتائج.</td></tr>`}</tbody>
+        </table>
+      </div>
     </section>
   `;
 }
 
-function renderEmployeesView() {
-  const employeeCards =
-    state.employees.length === 0
-      ? `<p>لا يوجد موظفون بعد.</p>`
-      : state.employees
-          .map(
-            (e, i) => `
-      <article class="employee-card">
-        <strong>${e.name}</strong>
-        <p>${e.email}</p>
-        <div class="badges">
-          <span class="badge">${e.role}</span>
-          <span class="badge">${e.branch}</span>
-          <span class="badge ${e.status === "فعال" ? "active" : e.status === "موقوف" ? "suspended" : "pending"}">${e.status}</span>
-        </div>
-        <button class="secondary-btn" data-remove-employee="${i}">حذف</button>
-      </article>
-    `
-          )
-          .join("");
-
-  const branchOptions = state.pharmacy.branches.map((b) => `<option value="${b.branchName}">${b.branchName || "فرع بدون اسم"}</option>`).join("");
-
-  return `
-    <section class="card full">
-      <h3>إدارة الموظفين</h3>
-      <div class="toolbar full">
-        <input id="emp-search" placeholder="بحث بالاسم أو البريد" />
-      </div>
-      <div class="row" id="employees-list">${employeeCards}</div>
-    </section>
-    <section class="card full">
-      <h3>إضافة موظف</h3>
-      <div class="row">
-        <div class="form-group"><label>الاسم</label><input id="emp-name" /></div>
-        <div class="form-group"><label>البريد</label><input id="emp-email" type="email" /></div>
-        <div class="form-group"><label>الدور</label>
-          <select id="emp-role">${state.roles.map((r) => `<option>${r}</option>`).join("")}</select>
-        </div>
-        <div class="form-group"><label>الفرع</label>
-          <select id="emp-branch">${branchOptions}</select>
-        </div>
-        <div class="form-group"><label>الحالة</label>
-          <select id="emp-status">
-            <option>فعال</option><option>موقوف</option><option>بانتظار التفعيل</option>
-          </select>
-        </div>
-      </div>
-      <button id="add-employee" class="primary-btn">إضافة موظف</button>
-    </section>
-  `;
-}
-
-function renderRolesView() {
-  const permRows = Object.entries(state.permissions)
+function renderInvoiceView() {
+  const products = filterMedicines(state.invoiceSearch);
+  const productRows = products
     .map(
-      ([key, value]) => `
-    <label><input type="checkbox" data-perm="${key}" ${value ? "checked" : ""} /> ${key}</label>
-  `
+      (m) => `
+      <tr>
+        <td>${m.name}</td>
+        <td>${m.barcode}</td>
+        <td>${m.quantity}</td>
+        <td>${currency(m.price)}</td>
+        <td><button class="primary-btn" data-add-cart="${m.id}">إضافة</button></td>
+      </tr>`
     )
-    .join("<br>");
+    .join("");
+
+  const cartRows = state.invoiceCart
+    .map(
+      (item) => `
+      <tr>
+        <td>${item.name}</td>
+        <td>${currency(item.price)}</td>
+        <td>
+          <div class="qty-wrap">
+            <button class="secondary-btn" data-dec-cart="${item.id}">-</button>
+            <span>${item.qty}</span>
+            <button class="secondary-btn" data-inc-cart="${item.id}">+</button>
+          </div>
+        </td>
+        <td>${currency(item.price * item.qty)}</td>
+        <td><button class="secondary-btn danger-soft" data-remove-cart="${item.id}">حذف</button></td>
+      </tr>`
+    )
+    .join("");
+
+  const subtotal = state.invoiceCart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const totalItems = state.invoiceCart.reduce((sum, item) => sum + item.qty, 0);
 
   return `
     <section class="card full">
-      <h3>الأدوار الجاهزة</h3>
-      <div class="badges">${state.roles.map((r) => `<span class="badge">${r}</span>`).join("")}</div>
-    </section>
-    <section class="card full">
-      <h3>الصلاحيات التفصيلية</h3>
-      ${permRows}
-      <p class="success-text" id="perm-msg"></p>
-      <button class="primary-btn" id="save-perms">حفظ الصلاحيات</button>
+      <h3>واجهة الفاتورة</h3>
+      <div class="toolbar full inv-toolbar">
+        <input id="invoice-search" value="${state.invoiceSearch}" placeholder="بحث في الأدوية بالاسم أو الباركود" />
+        <button id="scan-invoice" class="secondary-btn">📷 مسح باركود</button>
+        <button id="clear-cart" class="secondary-btn">تفريغ السلة</button>
+      </div>
+      <div class="split-grid">
+        <article class="card nested-card">
+          <h4>الأدوية المتوفرة</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الاسم</th><th>الباركود</th><th>المتوفر</th><th>السعر</th><th></th></tr></thead>
+              <tbody>${productRows || `<tr><td colspan="5">لا توجد أدوية مطابقة.</td></tr>`}</tbody>
+            </table>
+          </div>
+        </article>
+        <article class="card nested-card">
+          <h4>سلة الفاتورة</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الصنف</th><th>السعر</th><th>الكمية</th><th>الإجمالي</th><th></th></tr></thead>
+              <tbody>${cartRows || `<tr><td colspan="5">السلة فارغة.</td></tr>`}</tbody>
+            </table>
+          </div>
+          <div class="invoice-summary">
+            <p><strong>عدد القطع:</strong> ${totalItems}</p>
+            <p><strong>الإجمالي:</strong> ${currency(subtotal)}</p>
+          </div>
+          <button id="checkout" class="primary-btn" ${state.invoiceCart.length === 0 ? "disabled" : ""}>تأكيد الفاتورة</button>
+        </article>
+      </div>
     </section>
   `;
 }
 
-function renderPlanView() {
+function renderReportsView() {
+  const totalSales = state.salesHistory.reduce((sum, inv) => sum + inv.amount, 0);
+  const totalProfit = state.salesHistory.reduce((sum, inv) => sum + inv.profit, 0);
+  const totalInvoices = state.salesHistory.length;
+
+  const rows = state.salesHistory
+    .map(
+      (inv) => `
+      <tr>
+        <td>${inv.id}</td>
+        <td>${inv.date}</td>
+        <td>${inv.items}</td>
+        <td>${currency(inv.amount)}</td>
+        <td>${currency(inv.profit)}</td>
+      </tr>`
+    )
+    .join("");
+
   return `
+    <section class="metrics-grid full">
+      <article class="metric-card">
+        <p>إجمالي المبيعات</p>
+        <strong>${currency(totalSales)}</strong>
+      </article>
+      <article class="metric-card">
+        <p>إجمالي الأرباح</p>
+        <strong>${currency(totalProfit)}</strong>
+      </article>
+      <article class="metric-card">
+        <p>عدد الفواتير</p>
+        <strong>${totalInvoices}</strong>
+      </article>
+      <article class="metric-card">
+        <p>متوسط الفاتورة</p>
+        <strong>${currency(totalInvoices ? totalSales / totalInvoices : 0)}</strong>
+      </article>
+    </section>
     <section class="card full">
-      <h3>الخطة والاشتراك</h3>
-      <p>الخطة الحالية: <strong>${state.subscription.plan}</strong></p>
-      <p>السعر: <strong>${state.subscription.price}</strong></p>
-      <ul>
-        ${state.subscription.features.map((f) => `<li>${f}</li>`).join("")}
-      </ul>
-      <button class="primary-btn">ترقية الخطة (واجهة فقط)</button>
+      <h3>تفاصيل المبيعات</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>القطع</th><th>المبيعات</th><th>الربح</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </section>
   `;
 }
 
 function bindDashboardEvents() {
-  document.getElementById("save-account")?.addEventListener("click", () => {
-    state.pharmacy.name = document.getElementById("acc-name").value.trim();
-    state.pharmacy.owner = document.getElementById("acc-owner").value.trim();
-    state.pharmacy.email = document.getElementById("acc-email").value.trim();
-    state.pharmacy.address = document.getElementById("acc-address").value.trim();
-    alert("تم حفظ بيانات الحساب.");
+  document.getElementById("inventory-search")?.addEventListener("input", (e) => {
+    state.inventorySearch = e.target.value;
+    renderDashboardView();
   });
 
-  document.getElementById("add-employee")?.addEventListener("click", () => {
-    const employee = {
-      name: document.getElementById("emp-name").value.trim(),
-      email: document.getElementById("emp-email").value.trim(),
-      role: document.getElementById("emp-role").value,
-      branch: document.getElementById("emp-branch").value,
-      status: document.getElementById("emp-status").value
-    };
+  document.getElementById("invoice-search")?.addEventListener("input", (e) => {
+    state.invoiceSearch = e.target.value;
+    renderDashboardView();
+  });
 
-    if (!employee.name || !employee.email) {
-      alert("يرجى إدخال اسم الموظف والبريد.");
-      return;
-    }
+  document.getElementById("scan-inventory")?.addEventListener("click", () => {
+    alert("سيتم ربط الكاميرا في المرحلة القادمة. حالياً هذه واجهة أمامية فقط.");
+  });
 
-    state.employees.push(employee);
+  document.getElementById("scan-invoice")?.addEventListener("click", () => {
+    alert("ميزة المسح بالكاميرا جاهزة تصميمياً وستربط لاحقاً بالـ backend.");
+  });
+
+  document.getElementById("add-medicine")?.addEventListener("click", () => {
+    const name = prompt("اسم الدواء:");
+    if (!name) return;
+    const barcode = prompt("الباركود:");
+    if (!barcode) return;
+    const price = Number(prompt("السعر:") || 0);
+    const quantity = Number(prompt("الكمية:") || 0);
+
+    state.medicines.push({
+      id: Date.now(),
+      name,
+      barcode,
+      category: "عام",
+      price: Number.isFinite(price) ? price : 0,
+      cost: Number.isFinite(price) ? price * 0.7 : 0,
+      quantity: Number.isFinite(quantity) ? quantity : 0
+    });
     render();
   });
 
-  document.querySelectorAll("[data-remove-employee]").forEach((btn) => {
+  document.querySelectorAll("[data-edit-med]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.removeEmployee);
-      state.employees.splice(idx, 1);
+      const id = Number(btn.dataset.editMed);
+      const med = state.medicines.find((m) => m.id === id);
+      if (!med) return;
+      const nextName = prompt("تعديل اسم الدواء:", med.name);
+      if (nextName === null) return;
+      const nextPrice = Number(prompt("تعديل السعر:", med.price));
+      const nextQty = Number(prompt("تعديل الكمية:", med.quantity));
+      med.name = nextName.trim() || med.name;
+      med.price = Number.isFinite(nextPrice) ? nextPrice : med.price;
+      med.quantity = Number.isFinite(nextQty) ? nextQty : med.quantity;
       render();
     });
   });
 
-  document.querySelectorAll("[data-perm]").forEach((checkbox) => {
-    checkbox.addEventListener("change", () => {
-      state.permissions[checkbox.dataset.perm] = checkbox.checked;
+  document.querySelectorAll("[data-delete-med]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.deleteMed);
+      state.medicines = state.medicines.filter((m) => m.id !== id);
+      state.invoiceCart = state.invoiceCart.filter((item) => item.id !== id);
+      render();
     });
   });
 
-  document.getElementById("save-perms")?.addEventListener("click", () => {
-    document.getElementById("perm-msg").textContent = "تم حفظ الصلاحيات.";
+  document.querySelectorAll("[data-add-cart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.addCart);
+      const med = state.medicines.find((m) => m.id === id);
+      if (!med || med.quantity <= 0) {
+        alert("الدواء غير متوفر حالياً.");
+        return;
+      }
+
+      const existing = state.invoiceCart.find((item) => item.id === id);
+      const currentQty = existing ? existing.qty : 0;
+      if (currentQty >= med.quantity) {
+        alert("لا يمكن إضافة كمية أكبر من المتوفر في المستودع.");
+        return;
+      }
+
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        state.invoiceCart.push({ id: med.id, name: med.name, price: med.price, qty: 1 });
+      }
+      renderDashboardView();
+    });
   });
 
-  document.getElementById("emp-search")?.addEventListener("input", (e) => {
-    const term = e.target.value.trim().toLowerCase();
-    if (!term) {
-      render();
-      return;
-    }
-    const filtered = state.employees.filter((emp) => emp.name.toLowerCase().includes(term) || emp.email.toLowerCase().includes(term));
-    const html = filtered
-      .map(
-        (e) => `<article class="employee-card"><strong>${e.name}</strong><p>${e.email}</p><div class="badges"><span class="badge">${e.role}</span><span class="badge">${e.branch}</span><span class="badge">${e.status}</span></div></article>`
-      )
-      .join("");
-    document.getElementById("employees-list").innerHTML = html || "<p>لا نتائج.</p>";
+  document.querySelectorAll("[data-inc-cart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.incCart);
+      const cartItem = state.invoiceCart.find((item) => item.id === id);
+      const med = state.medicines.find((m) => m.id === id);
+      if (!cartItem || !med) return;
+      if (cartItem.qty >= med.quantity) return;
+      cartItem.qty += 1;
+      renderDashboardView();
+    });
+  });
+
+  document.querySelectorAll("[data-dec-cart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.decCart);
+      const cartItem = state.invoiceCart.find((item) => item.id === id);
+      if (!cartItem) return;
+      cartItem.qty -= 1;
+      if (cartItem.qty <= 0) {
+        state.invoiceCart = state.invoiceCart.filter((item) => item.id !== id);
+      }
+      renderDashboardView();
+    });
+  });
+
+  document.querySelectorAll("[data-remove-cart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.removeCart);
+      state.invoiceCart = state.invoiceCart.filter((item) => item.id !== id);
+      renderDashboardView();
+    });
+  });
+
+  document.getElementById("clear-cart")?.addEventListener("click", () => {
+    state.invoiceCart = [];
+    renderDashboardView();
+  });
+
+  document.getElementById("checkout")?.addEventListener("click", () => {
+    if (state.invoiceCart.length === 0) return;
+
+    let total = 0;
+    let profit = 0;
+    let items = 0;
+
+    state.invoiceCart.forEach((item) => {
+      const med = state.medicines.find((m) => m.id === item.id);
+      if (!med) return;
+      med.quantity -= item.qty;
+      total += item.qty * item.price;
+      profit += item.qty * (item.price - med.cost);
+      items += item.qty;
+    });
+
+    state.salesHistory.unshift({
+      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: new Date().toISOString().slice(0, 10),
+      amount: Number(total.toFixed(2)),
+      items,
+      profit: Number(profit.toFixed(2))
+    });
+
+    state.invoiceCart = [];
+    state.currentView = "reports";
+    render();
   });
 }
 
